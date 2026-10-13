@@ -62,7 +62,7 @@
  * implement the REST endpoints documented in README / master specification.
  * Browser storage is not a secure shared database.
  */
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.1.0';
 const STORAGE_KEY = 'tvet-quality-challenge-v1';
 const API_CONFIG_KEY = 'tvet-quality-challenge-api-base';
 const PHASES = [
@@ -182,6 +182,104 @@ window.addEventListener('beforeunload',()=>{if(db.meta)persist()});
 if(!localStorage.getItem(STORAGE_KEY))persist();
 render();
 </script>
+
+<!-- Version 1.1.0: realtime collaboration room extension -->
+<style>
+#collabLauncher{position:fixed;right:18px;bottom:18px;z-index:50;background:#176b57;color:#fff;border:0;border-radius:999px;padding:13px 18px;font-weight:800;box-shadow:0 8px 26px #10231f35}
+#collabPanel{position:fixed;inset:0;z-index:90;background:#10231f9c;display:none;align-items:center;justify-content:center;padding:16px}
+#collabPanel.open{display:flex}#collabWindow{background:#f8faf8;width:min(1120px,100%);max-height:94vh;overflow:auto;border-radius:18px;box-shadow:0 20px 80px #0004}
+#collabWindow header{position:sticky;top:0;background:#173b35;color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px;z-index:2}
+#collabWindow header h2{margin:0;font-size:19px}#collabContent{padding:20px}.cc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.cc-card{background:white;border:1px solid #dce5df;border-radius:12px;padding:15px;min-width:0}.cc-card h3{margin:0 0 10px}.cc-field{display:grid;gap:5px;margin:9px 0}.cc-field label{font-size:12px;font-weight:750;color:#40534d}.cc-field input,.cc-field select,.cc-field textarea{width:100%;padding:10px;border:1px solid #ccd9d2;border-radius:8px;background:#fff}.cc-field textarea{min-height:210px;resize:vertical;font:13px/1.5 ui-monospace,monospace}.cc-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.cc-btn{padding:9px 12px;border-radius:8px;border:1px solid #ccd9d2;background:#fff;font-weight:750}.cc-btn.main{background:#176b57;color:white;border-color:#176b57}.cc-status{padding:10px;border-radius:8px;background:#eef6f1;color:#315a49;margin:10px 0;font-size:13px}.cc-status.bad{background:#fff0f0;color:#922b2b}.cc-muted{font-size:12px;color:#62736f}.cc-roomlist{display:grid;gap:7px}.cc-room{padding:10px;border:1px solid #dce5df;border-radius:9px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff}.cc-hidden{display:none!important}@media(max-width:700px){.cc-grid{grid-template-columns:1fr}#collabContent{padding:12px}#collabWindow header{padding:13px}}
+@media print{body>*:not(#collabPanel){display:none!important}#collabPanel{position:static;display:block!important;background:white;padding:0}#collabWindow{max-height:none;overflow:visible;box-shadow:none;width:100%}#collabWindow header,#ccAuth,#ccRoomControls,#ccExportControls,#ccImportControls,#ccSaveActions{display:none!important}#collabContent{padding:0}.cc-card{break-inside:avoid;border:0}.cc-field textarea{border:0;min-height:0;white-space:pre-wrap}}
+</style>
+<button id="collabLauncher" type="button" aria-label="Open collaborative rooms">👥 Collaborative Rooms</button>
+<div id="collabPanel" role="dialog" aria-modal="true" aria-label="Collaborative rooms">
+ <div id="collabWindow">
+  <header><div><h2>The TVET Quality Challenge · Collaborative Rooms</h2><div style="font-size:12px;color:#c8d9d3">Version 1.1.0 · Individual or group workspace</div></div><button id="ccClose" class="cc-btn" type="button">Close ✕</button></header>
+  <div id="collabContent">
+   <div class="cc-status" id="ccStatus">Set your Supabase project details below to enable secure shared rooms. Offline local notes remain available.</div>
+   <div class="cc-grid" id="ccAuth">
+    <section class="cc-card"><h3>1. Connect and sign in</h3>
+     <p class="cc-muted">Create an account with your workshop email, then sign in. Each collaborator needs an account.</p>
+     <div class="cc-field"><label for="ccUrl">Supabase project URL</label><input id="ccUrl" placeholder="https://your-project.supabase.co"></div>
+     <div class="cc-field"><label for="ccKey">Supabase anon / publishable key</label><input id="ccKey" placeholder="Public browser key only" autocomplete="off"></div>
+     <div class="cc-field"><label for="ccEmail">Email</label><input id="ccEmail" type="email" autocomplete="username"></div>
+     <div class="cc-field"><label for="ccPassword">Password</label><input id="ccPassword" type="password" autocomplete="current-password"></div>
+     <div class="cc-actions"><button class="cc-btn main" id="ccConnect" type="button">Connect</button><button class="cc-btn" id="ccSignup" type="button">Create account</button><button class="cc-btn" id="ccLogin" type="button">Sign in</button><button class="cc-btn" id="ccLogout" type="button">Sign out</button></div>
+     <p class="cc-muted">Never enter a Supabase service-role/secret key here. Project URL and public anon/publishable key are saved in this browser only.</p>
+    </section>
+    <section class="cc-card"><h3>2. Create or join a room</h3>
+     <div class="cc-field"><label for="ccMode">Activity mode</label><select id="ccMode"><option value="group">Group activity (shared team room)</option><option value="individual">Individual activity (private room)</option></select></div>
+     <div class="cc-field"><label for="ccRoomName">Room name</label><input id="ccRoomName" placeholder="e.g., Team A — Assessment Quality"></div>
+     <div class="cc-actions"><button class="cc-btn main" id="ccCreate" type="button">Create room</button></div>
+     <div class="cc-field"><label for="ccJoinCode">Invite code</label><input id="ccJoinCode" placeholder="Paste room invite code"></div>
+     <div class="cc-actions"><button class="cc-btn" id="ccJoin" type="button">Join room</button><button class="cc-btn" id="ccRefreshRooms" type="button">Refresh my rooms</button></div>
+     <div class="cc-roomlist" id="ccRooms"></div>
+    </section>
+   </div>
+   <section class="cc-card" style="margin-top:14px">
+    <div class="cc-grid">
+     <div><h3 id="ccActiveRoomTitle">3. Workspace</h3><div class="cc-muted" id="ccRoomMeta">Select a room to begin. Changes are shared with signed-in members of the room.</div></div>
+     <div><div class="cc-field"><label for="ccPhase">Task phase</label><select id="ccPhase"><option value="1">Phase 1 — Identify the quality challenge</option><option value="2">Phase 2 — Analyze root causes</option><option value="3">Phase 3 — Select evidence and indicators</option><option value="4">Phase 4 — Design the improvement</option><option value="5">Phase 5 — Peer review and refine</option><option value="6">Phase 6 — 30-day commitment and reflection</option></select></div><div class="cc-muted">Each phase has its own saved notes and Markdown/PDF export.</div></div>
+    </div>
+    <div class="cc-field"><label for="ccNotes">Shared phase notes / deliverable</label><textarea id="ccNotes" placeholder="Write the team's work for this phase. Signed-in room members can see and update it."></textarea></div>
+    <div class="cc-actions" id="ccSaveActions"><button class="cc-btn main" id="ccSave" type="button">Save and sync phase</button><span class="cc-muted" id="ccSyncState">Not connected to a room</span></div>
+    <div class="cc-actions" id="ccExportControls"><button class="cc-btn" id="ccExportMd" type="button">Export this phase (.md)</button><button class="cc-btn" id="ccExportPdf" type="button">Print / Save this phase as PDF</button><button class="cc-btn" id="ccExportAll" type="button">Export all 6 phases (.md)</button></div>
+    <div class="cc-actions" id="ccImportControls"><label class="cc-btn" for="ccImportFile">Import phase notes (.md)</label><input id="ccImportFile" type="file" accept=".md,.markdown,text/markdown,text/plain" class="cc-hidden"></div>
+   </section>
+   <p class="cc-muted">Collaboration requires the SQL setup in the companion setup guide, a Supabase project, and internet access. If not configured, the phase editor can still be used locally, but it will not synchronize between devices.</p>
+  </div>
+ </div>
+</div>
+<script>
+(()=> {
+ const $=id=>document.getElementById(id);
+ const PHASES={
+  1:'Identify the quality challenge',2:'Analyze root causes',3:'Select evidence and indicators',
+  4:'Design the improvement',5:'Peer review and refine',6:'30-day commitment and reflection'
+ };
+ let supa=null,user=null,rooms=[],activeRoom=null,channel=null,phaseDocs={},loadingDoc=false;
+ const cfgKey='tvetq_collab_config_v1';
+ function status(msg,bad=false){$('ccStatus').textContent=msg;$('ccStatus').classList.toggle('bad',bad)}
+ function sync(msg){$('ccSyncState').textContent=msg}
+ function open(){ $('collabPanel').classList.add('open'); }
+ function close(){ $('collabPanel').classList.remove('open'); }
+ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+ function phaseNum(){return Number($('ccPhase').value||1)}
+ function docKey(roomId,phase){return roomId+':'+phase}
+ function fileName(s){return String(s||'tvet-quality-challenge').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,70)||'tvet-quality-challenge'}
+ function download(name,content,type){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([content],{type}));a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+ function mdForPhase(n,notes){return `# The TVET Quality Challenge\n\n- **Room:** ${activeRoom?.name||'Local workspace'}\n- **Mode:** ${activeRoom?.mode||'individual'}\n- **Phase:** ${n} — ${PHASES[n]}\n- **Exported:** ${new Date().toLocaleString()}\n\n## Phase notes / deliverable\n\n${notes||'_No notes entered yet._'}\n`}
+ function localSave(){const key=docKey(activeRoom?.id||'local',phaseNum());phaseDocs[key]=$('ccNotes').value;try{localStorage.setItem('tvetq_phase_docs_v1',JSON.stringify(phaseDocs))}catch{}}
+ async function loadSdk(){if(window.supabase?.createClient)return;await new Promise((resolve,reject)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';sc.onload=resolve;sc.onerror=()=>reject(new Error('Could not load Supabase SDK. Check internet access.'));document.head.appendChild(sc)})}
+ async function connect(){const url=$('ccUrl').value.trim(),key=$('ccKey').value.trim();if(!/^https:\/\/.+\.supabase\.co\/?$/.test(url)||!key){throw new Error('Enter a valid Supabase project URL and public anon/publishable key.')}await loadSdk();supa=window.supabase.createClient(url.replace(/\/$/,''),key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});localStorage.setItem(cfgKey,JSON.stringify({url,key}));const {data,error}=await supa.auth.getSession();if(error)throw error;user=data.session?.user||null;status(user?`Connected as ${user.email}.`:'Connected. Create an account or sign in.');return true}
+ async function requireConnected(){if(!supa)await connect();if(!user){const {data,error}=await supa.auth.getUser();if(error||!data.user)throw new Error('Please sign in first.');user=data.user}}
+ async function signup(){await connect();const {data,error}=await supa.auth.signUp({email:$('ccEmail').value.trim(),password:$('ccPassword').value});if(error)throw error;user=data.user;if(data.session){status('Account created and signed in.');await refreshRooms()}else status('Account created. Check your email to confirm, then sign in.')}
+ async function login(){await connect();const {data,error}=await supa.auth.signInWithPassword({email:$('ccEmail').value.trim(),password:$('ccPassword').value});if(error)throw error;user=data.user;status(`Signed in as ${user.email}.`);await refreshRooms()}
+ async function logout(){if(supa)await supa.auth.signOut();user=null;activeRoom=null;rooms=[];if(channel){await supa.removeChannel(channel);channel=null}renderRooms();sync('Signed out');status('Signed out. Sign in to access collaborative rooms.')}
+ async function refreshRooms(){await requireConnected();const {data,error}=await supa.rpc('tvetq_my_rooms');if(error)throw new Error('Could not load rooms. Run the companion SQL setup and confirm RLS policies. '+error.message);rooms=data||[];renderRooms();status(`Signed in as ${user.email}. ${rooms.length} room(s) available.`)}
+ function renderRooms(){$('ccRooms').innerHTML=rooms.length?rooms.map(r=>`<div class="cc-room"><div><strong>${esc(r.name)}</strong><div class="cc-muted">${esc(r.mode)} · invite ${esc(r.invite_code||'')}</div></div><button class="cc-btn" data-room-open="${esc(r.id)}" type="button">Open</button></div>`).join(''):'<p class="cc-muted">No rooms loaded yet.</p>'}
+ async function createRoom(){await requireConnected();const name=$('ccRoomName').value.trim();if(!name)throw new Error('Enter a room name.');const code=Array.from(crypto.getRandomValues(new Uint8Array(6))).map(n=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[n%32]).join('');const {data,error}=await supa.rpc('tvetq_create_room',{p_name:name,p_mode:$('ccMode').value,p_invite_code:code});if(error)throw error;await refreshRooms();const room=(rooms||[]).find(r=>r.id===data);if(room)await selectRoom(room.id);status(`Room created. Invite code: ${code} — share it only with intended collaborators.`)}
+ async function joinRoom(){await requireConnected();const code=$('ccJoinCode').value.trim().toUpperCase();if(!code)throw new Error('Enter the invite code.');const {data,error}=await supa.rpc('tvetq_join_room',{p_invite_code:code});if(error)throw error;await refreshRooms();await selectRoom(data);status('Joined room successfully.')}
+ async function selectRoom(id){await requireConnected();const room=rooms.find(r=>r.id===id);if(!room)throw new Error('Room not found in your room list.');activeRoom=room;$('ccActiveRoomTitle').textContent='Workspace — '+room.name;$('ccRoomMeta').textContent=`${room.mode==='group'?'Group activity: shared collaboration':'Individual activity: private workspace'} · Invite code: ${room.invite_code} · Realtime sync enabled`;$('ccNotes').value='';if(channel){await supa.removeChannel(channel);channel=null}const {data,error}=await supa.from('tvetq_phase_docs').select('phase_no,content,updated_at,updated_by').eq('room_id',room.id);if(error)throw error;phaseDocs={};(data||[]).forEach(d=>phaseDocs[docKey(room.id,d.phase_no)]=d.content||'');$('ccNotes').value=phaseDocs[docKey(room.id,phaseNum())]||'';channel=supa.channel('room-'+room.id).on('postgres_changes',{event:'*',schema:'public',table:'tvetq_phase_docs',filter:'room_id=eq.'+room.id},payload=>{const row=payload.new;if(row&&Number(row.phase_no)===phaseNum()&&row.updated_by!==user?.id&&!loadingDoc){loadingDoc=true;$('ccNotes').value=row.content||'';phaseDocs[docKey(room.id,row.phase_no)]=row.content||'';sync('Live update received');loadingDoc=false}else if(row){phaseDocs[docKey(room.id,row.phase_no)]=row.content||''}}).subscribe();sync('Room open · listening for live updates');}
+ async function savePhase(){localSave();if(!supa||!user||!activeRoom){sync('Saved locally in this browser only. Connect, sign in, and open a room to sync.');return}await requireConnected();const n=phaseNum(),content=$('ccNotes').value;const {error}=await supa.from('tvetq_phase_docs').upsert({room_id:activeRoom.id,phase_no:n,content,updated_by:user.id,updated_at:new Date().toISOString()},{onConflict:'room_id,phase_no'});if(error)throw error;phaseDocs[docKey(activeRoom.id,n)]=content;sync('Saved and synced · '+new Date().toLocaleTimeString());}
+ async function changePhase(){if(activeRoom&&supa&&user){const {data,error}=await supa.from('tvetq_phase_docs').select('content').eq('room_id',activeRoom.id).eq('phase_no',phaseNum()).maybeSingle();if(error)throw error;loadingDoc=true;$('ccNotes').value=data?.content||'';loadingDoc=false;sync('Phase '+phaseNum()+' loaded from shared room')}else{$('ccNotes').value=phaseDocs[docKey(activeRoom?.id||'local',phaseNum())]||'';sync('Local draft loaded')}}
+ function importMd(file){if(!file)return;const r=new FileReader();r.onload=()=>{let text=String(r.result||'');const marker='## Phase notes / deliverable';const at=text.indexOf(marker);if(at>=0)text=text.slice(at+marker.length).trim();$('ccNotes').value=text;localSave();sync('Markdown imported to the current phase. Click Save and sync phase to share it.');$('ccImportFile').value=''};r.onerror=()=>status('Could not read that file.',true);r.readAsText(file)}
+ function run(fn){Promise.resolve().then(fn).catch(e=>{console.error(e);status(e.message||'Something went wrong.',true)})}
+ $('collabLauncher').addEventListener('click',open);$('ccClose').addEventListener('click',close);$('collabPanel').addEventListener('click',e=>{if(e.target===$('collabPanel'))close()});
+ $('ccConnect').addEventListener('click',()=>run(async()=>{await connect();if(user)await refreshRooms()}));$('ccSignup').addEventListener('click',()=>run(signup));$('ccLogin').addEventListener('click',()=>run(login));$('ccLogout').addEventListener('click',()=>run(logout));$('ccCreate').addEventListener('click',()=>run(createRoom));$('ccJoin').addEventListener('click',()=>run(joinRoom));$('ccRefreshRooms').addEventListener('click',()=>run(refreshRooms));$('ccSave').addEventListener('click',()=>run(savePhase));$('ccPhase').addEventListener('change',()=>run(changePhase));$('ccRooms').addEventListener('click',e=>{const b=e.target.closest('[data-room-open]');if(b)run(()=>selectRoom(b.dataset.roomOpen))});
+ $('ccExportMd').addEventListener('click',()=>download(`${fileName(activeRoom?.name)}-phase-${phaseNum()}.md`,mdForPhase(phaseNum(),$('ccNotes').value),'text/markdown;charset=utf-8'));
+ $('ccExportAll').addEventListener('click',()=>{const all=[1,2,3,4,5,6].map(n=>mdForPhase(n,phaseDocs[docKey(activeRoom?.id||'local',n)]|| (n===phaseNum()?$('ccNotes').value:''))).join('\n---\n\n');download(`${fileName(activeRoom?.name)}-all-phases.md`,all,'text/markdown;charset=utf-8')});
+ $('ccExportPdf').addEventListener('click',()=>{const title=`${activeRoom?.name||'Local workspace'} — Phase ${phaseNum()}: ${PHASES[phaseNum()]}`;$('ccActiveRoomTitle').textContent=title;window.print();$('ccActiveRoomTitle').textContent='Workspace — '+(activeRoom?.name||'Local workspace')});
+ $('ccImportFile').addEventListener('change',e=>importMd(e.target.files?.[0]));
+ $('ccNotes').addEventListener('input',()=>{localSave();sync(activeRoom&&supa&&user?'Unsaved changes · click Save and sync phase':'Draft saved locally')});
+ try{const cfg=JSON.parse(localStorage.getItem(cfgKey)||'null');if(cfg){$('ccUrl').value=cfg.url||'';$('ccKey').value=cfg.key||''}phaseDocs=JSON.parse(localStorage.getItem('tvetq_phase_docs_v1')||'{}')}catch{}
+ $('ccPhase').addEventListener('change',()=>{if(!activeRoom){$('ccNotes').value=phaseDocs[docKey('local',phaseNum())]||''}});
+})();
+</script>
+
+
+
+
 </body>
 </html>
-
