@@ -62,7 +62,7 @@
  * implement the REST endpoints documented in README / master specification.
  * Browser storage is not a secure shared database.
  */
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.2.2';
 const STORAGE_KEY = 'tvet-quality-challenge-v1';
 const API_CONFIG_KEY = 'tvet-quality-challenge-api-base';
 const PHASES = [
@@ -195,7 +195,7 @@ render();
 <button id="collabLauncher" type="button" aria-label="Open collaborative rooms">👥 Collaborative Rooms</button>
 <div id="collabPanel" role="dialog" aria-modal="true" aria-label="Collaborative rooms">
  <div id="collabWindow">
-  <header><div><h2>The TVET Quality Challenge · Collaborative Rooms</h2><div style="font-size:12px;color:#c8d9d3">Version 1.2.1 · Individual or group workspace</div></div><button id="ccClose" class="cc-btn" type="button">Close ✕</button></header>
+  <header><div><h2>The TVET Quality Challenge · Collaborative Rooms</h2><div style="font-size:12px;color:#c8d9d3">Version 1.2.2 · Individual or group workspace</div></div><button id="ccClose" class="cc-btn" type="button">Close ✕</button></header>
   <div id="collabContent">
    <div class="cc-status" id="ccStatus">Checking collaboration service…</div>
    <div class="cc-status" id="ccIdentity" aria-live="polite">Session status: checking…</div>
@@ -272,7 +272,7 @@ render();
   if(user)await refreshRooms();return true;
  }
  async function requireConnected(){if(!supa)await connect();if(!user){const {data,error}=await supa.auth.getUser();if(error||!data.user)throw new Error('Please sign in first.');user=data.user}}
- async function signup(){await connect();const {data,error}=await supa.auth.signUp({email:$('ccEmail').value.trim(),password:$('ccPassword').value});if(error)throw error;user=data.user;if(data.session){status('Account created and signed in.');await refreshRooms()}else status('Account created. Check your email to confirm, then sign in.')}
+ async function signup(){await connect();const emailRedirectTo=window.location.origin+window.location.pathname;const {data,error}=await supa.auth.signUp({email:$('ccEmail').value.trim(),password:$('ccPassword').value,options:{emailRedirectTo}});if(error)throw error;user=data.user;if(data.session){status('Account created and signed in.');await refreshRooms()}else status('Account created. Check your email to confirm. The link should return to '+emailRedirectTo+'; then sign in.')}
  async function login(){await connect();const {data,error}=await supa.auth.signInWithPassword({email:$('ccEmail').value.trim(),password:$('ccPassword').value});if(error)throw error;user=data.user;status(`Signed in as ${user.email}.`);await refreshRooms()}
  async function logout(){if(supa)await supa.auth.signOut();user=null;activeRoom=null;rooms=[];if(channel){await supa.removeChannel(channel);channel=null}renderRooms();identity('Not signed in');roomState('Room status: not joined — create or open a room to join.');sync('Signed out');status('Signed out. Sign in to access collaborative rooms.')}
  async function refreshRooms(){await requireConnected();const {data,error}=await supa.rpc('tvetq_my_rooms');if(error)throw new Error('Could not load rooms. Run the companion SQL setup and confirm RLS policies. '+error.message);rooms=data||[];renderRooms();identity(`Signed in as ${user.email}`);status(`Connected · signed in as ${user.email} · ${rooms.length} room(s) available.`)}
